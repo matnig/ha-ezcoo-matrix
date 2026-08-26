@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+- `build.yaml` ergänzt. Ohne diese Datei übergibt der Supervisor kein `BUILD_FROM`,
+  wodurch der Docker-Build mit `base name (${BUILD_FROM}) should not be blank`
+  abbrach. Basis ist jetzt `ghcr.io/home-assistant/<arch>-base:3.22` — die neueste
+  Version, die für alle drei Architekturen inklusive armv7 verfügbar ist.
+
 ## 1.0.0
 
 Erste Veröffentlichung.
