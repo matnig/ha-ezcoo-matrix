@@ -357,7 +357,7 @@ class Bridge:
         self._discovery_sent = False
 
         self.mqtt = mqtt.Client(
-            **({"callback_api_version": mqtt.CallbackAPIVersion.VERSION1}
+            **({"callback_api_version": mqtt.CallbackAPIVersion.VERSION2}
                if hasattr(mqtt, "CallbackAPIVersion") else {}),
             client_id="ezcoo-matrix-bridge",
         )
@@ -369,9 +369,11 @@ class Bridge:
 
     # ------------------------------------------------------------- MQTT
 
-    def _on_connect(self, client, userdata, flags, rc, properties=None):
-        if rc != 0:
-            LOG.error("MQTT-Verbindung abgelehnt (rc=%s)", rc)
+    def _on_connect(self, client, userdata, flags, reason_code, properties=None):
+        # paho 1.x liefert einen int, paho 2.x ein ReasonCode-Objekt
+        code = getattr(reason_code, "value", reason_code)
+        if code != 0:
+            LOG.error("MQTT-Verbindung abgelehnt (%s)", reason_code)
             return
         LOG.info("MQTT verbunden mit %s:%s", MQTT_HOST, MQTT_PORT)
         client.subscribe(f"{BASE_TOPIC}/+/source/set", qos=1)

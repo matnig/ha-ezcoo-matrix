@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Umstellung auf die paho-mqtt-Callback-API v2. Version 1 ist seit paho 2.0
+  veraltet und erzeugte beim Start eine `DeprecationWarning`. Der Rückgabewert
+  von `on_connect` wird jetzt sowohl als `int` (paho 1.x) als auch als
+  `ReasonCode` (paho 2.x) korrekt ausgewertet.
+
 ## 1.0.1
 
 - `build.yaml` ergänzt. Ohne diese Datei übergibt der Supervisor kein `BUILD_FROM`,
