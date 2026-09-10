@@ -4,11 +4,32 @@ set -e
 export VERBINDUNG="$(bashio::config 'verbindung')"
 
 if [ "${VERBINDUNG}" = "seriell" ]; then
-    export SERIAL_PORT="$(bashio::config 'serial_port')"
+    SERIAL_PORT="$(bashio::config 'serial_port')"
+    # Haeufiger Bedienfehler: der Schluesselname wird mit ins Feld kopiert
+    case "${SERIAL_PORT}" in
+        serial_port:*)
+            SERIAL_PORT="$(echo "${SERIAL_PORT}" | sed 's/^serial_port:[[:space:]]*//')"
+            bashio::log.warning "serial_port enthielt den Schluesselnamen - korrigiert zu ${SERIAL_PORT}"
+            ;;
+    esac
+    export SERIAL_PORT
     export SERIAL_BAUD="$(bashio::config 'serial_baud')"
+
     if [ ! -e "${SERIAL_PORT}" ]; then
-        bashio::log.warning "Serielles Geraet ${SERIAL_PORT} nicht gefunden. Vorhanden:"
-        ls -1 /dev/tty* 2>/dev/null | grep -E 'USB|ACM|AMA' || bashio::log.warning "  keine"
+        bashio::log.error "Serielles Geraet '${SERIAL_PORT}' nicht gefunden."
+        bashio::log.info "Vorhandene serielle Geraete:"
+        gefunden=0
+        for d in /dev/ttyUSB* /dev/ttyACM* /dev/ttyAMA*; do
+            [ -e "$d" ] && { bashio::log.info "  $d"; gefunden=1; }
+        done
+        if [ -d /dev/serial/by-id ]; then
+            for d in /dev/serial/by-id/*; do
+                [ -e "$d" ] && { bashio::log.info "  $d   (stabil, empfohlen)"; gefunden=1; }
+            done
+        else
+            bashio::log.info "  /dev/serial/by-id existiert nicht in diesem Container"
+        fi
+        [ "$gefunden" = "0" ] && bashio::log.info "  keine gefunden - haengt das USB-Kabel am HA-Rechner?"
     fi
 else
     bashio::config.require 'matrix_host' "Ohne die IP-Adresse der Matrix kann die Bridge nicht starten."

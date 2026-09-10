@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1
+
+- `udev: true` ergänzt. Ohne diese Berechtigung existiert `/dev/serial/by-id/`
+  im Container nicht, und der stabile Gerätepfad lässt sich gar nicht angeben.
+- Die Liste der vorhandenen seriellen Geräte im Protokoll berücksichtigt jetzt
+  auch `/dev/serial/by-id/` und weist auf den empfohlenen Pfad hin. Vorher
+  durchsuchte sie nur `/dev/tty*` und verschwieg damit ausgerechnet die
+  Variante, zu der die Anleitung rät.
+- Wird der Schlüsselname versehentlich mit ins Feld `serial_port` kopiert
+  (`serial_port: /dev/...`), entfernt das Add-on ihn und schreibt eine Warnung,
+  statt mit „No such file or directory" zu scheitern.
+
 ## 1.1.0
 
 - **Serieller Betriebsmodus.** Die Bridge kann die Matrix jetzt wahlweise über
