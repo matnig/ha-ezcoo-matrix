@@ -1,5 +1,5 @@
 name: EZCOO Matrix Bridge
-version: "1.1.1"
+version: "1.2.0"
 slug: ezcoo_matrix_bridge
 description: Steuert eine EZCOO EZ-MX44HAS2 HDMI-Matrix per MQTT aus Home Assistant
 url: https://github.com/matnig/ha-ezcoo-matrix

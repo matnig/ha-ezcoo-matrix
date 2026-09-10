@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0
+
+- **Neustart-Knopf.** Eine neue `button`-Entity „Neustart" löst `EZS RBT` aus.
+  Nützlich, wenn die Matrix zwar antwortet, aber nicht mehr sauber schaltet.
+
+  Im seriellen Betrieb reißt dabei die Verbindung ab, weil der USB-Wandler im
+  Gerät selbst sitzt und beim Neustart kurz vom Bus verschwindet. Das wird als
+  Normalfall behandelt: Die Bridge schließt die Verbindung, meldet den Ausfall
+  und wartet `REBOOT_WAIT` Sekunden (Standard 25), bevor sie wieder anklopft —
+  statt in die Fehlerschleife zu laufen.
+
+  Ein Werksreset (`EZS RST`) wird bewusst **nicht** angeboten und von dieser
+  Bridge nie gesendet.
+
 ## 1.1.1
 
 - `udev: true` ergänzt. Ohne diese Berechtigung existiert `/dev/serial/by-id/`

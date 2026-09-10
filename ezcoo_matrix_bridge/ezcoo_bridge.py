@@ -48,6 +48,10 @@ MATRIX_PORT = int(_env("MATRIX_PORT", "23"))
 POLL_INTERVAL = float(_env("POLL_INTERVAL", "10"))
 # Obergrenze der Wartezeit, wenn die Matrix nicht antwortet
 BACKOFF_MAX = float(_env("BACKOFF_MAX", "300"))
+# Wie lange nach einem Neustartbefehl gewartet wird, bevor wieder angeklopft
+# wird. Der USB-Seriell-Wandler sitzt im Geraet und verschwindet beim Neustart
+# kurz vom Bus.
+REBOOT_WAIT = float(_env("REBOOT_WAIT", "25"))
 BASE_TOPIC = (_env("BASE_TOPIC", "ezcoo/mx44has2") or "").rstrip("/")
 DISCOVERY_PREFIX = (_env("DISCOVERY_PREFIX", "homeassistant") or "").rstrip("/")
 
@@ -396,6 +400,18 @@ def discovery_payloads(state: dict) -> list[tuple[str, dict]]:
          "icon": "mdi:call-split"},
     ))
 
+    items.append((
+        f"{DISCOVERY_PREFIX}/button/{uid}/reboot/config",
+        {**common,
+         "name": "Neustart",
+         "unique_id": f"{uid}_reboot",
+         "command_topic": f"{BASE_TOPIC}/system/reboot/set",
+         "payload_press": "PRESS",
+         "device_class": "restart",
+         "entity_category": "config",
+         "icon": "mdi:restart"},
+    ))
+
     for key, label, icon in (("firmware", "Firmware", "mdi:chip"),
                              ("ip", "IP-Adresse", "mdi:ip-network"),
                              ("mac", "MAC-Adresse", "mdi:ethernet")):
@@ -436,6 +452,8 @@ class Bridge:
         self.state: dict = {}
         self.stop = threading.Event()
         self.refresh_now = threading.Event()
+        # Zeitpunkt, ab dem wieder gepollt werden darf (nach einem Neustart)
+        self.pause_until = 0.0
         self._discovery_sent = False
 
         self.mqtt = mqtt.Client(
@@ -460,6 +478,7 @@ class Bridge:
         LOG.info("MQTT verbunden mit %s:%s", MQTT_HOST, MQTT_PORT)
         client.subscribe(f"{BASE_TOPIC}/+/source/set", qos=1)
         client.subscribe(f"{BASE_TOPIC}/+/stream/set", qos=1)
+        client.subscribe(f"{BASE_TOPIC}/system/+/set", qos=1)
         client.publish(AVAIL_TOPIC, "online", qos=1, retain=True)
         self._discovery_sent = False
         self.refresh_now.set()
@@ -476,6 +495,8 @@ class Bridge:
                 self._handle_source(target, payload)
             elif kind == "stream":
                 self._handle_stream(target, payload)
+            elif kind == "reboot" and target == "system":
+                self._handle_reboot()
         except Exception:
             LOG.exception("Befehl aus %s fehlgeschlagen", msg.topic)
 
@@ -503,6 +524,24 @@ class Bridge:
             LOG.warning("Unbekanntes Ziel %r", target)
             return None
         return int(m.group(1))
+
+    def _handle_reboot(self) -> None:
+        """Startet die Matrix neu (EZS RBT).
+
+        Bewusst kein Werksreset: EZS RST wird von dieser Bridge nie gesendet.
+        """
+        LOG.info("-> EZS RBT (Neustart der Matrix)")
+        try:
+            antwort = self.link.send("EZS RBT", quiet=0.5, deadline=6.0)
+            LOG.debug("<- %r", antwort.strip())
+        except ConnectionError as err:
+            # Im seriellen Betrieb reisst die Verbindung beim Neustart ab -
+            # das ist der Normalfall, kein Fehler.
+            LOG.info("Verbindung beim Neustart abgerissen (erwartet): %s", err)
+        self.link.close()
+        self._publish_state(connected=False)
+        self.pause_until = time.monotonic() + REBOOT_WAIT
+        LOG.info("Warte %.0f s, bis die Matrix wieder da ist", REBOOT_WAIT)
 
     def _send(self, command: str) -> None:
         LOG.info("-> %s", command)
@@ -555,6 +594,10 @@ class Bridge:
         fehler = 0
         try:
             while not self.stop.is_set():
+                rest = self.pause_until - time.monotonic()
+                if rest > 0:
+                    self.stop.wait(timeout=min(rest, 5.0))
+                    continue
                 if self.poll():
                     fehler = 0
                     wartezeit = POLL_INTERVAL

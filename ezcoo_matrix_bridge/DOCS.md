@@ -99,6 +99,7 @@ Die Matrix verwendet **57600 Baud**, 8N1 — nicht die oft vermuteten 115200.
 | `binary_sensor` | 4 | Display am Ausgang verbunden (Diagnose) |
 | `binary_sensor` | 1 | Verbindung der Bridge zur Matrix (Diagnose) |
 | `sensor` | 3 | Firmware, IP, MAC (Diagnose) |
+| `button` | 1 | Neustart der Matrix (`EZS RBT`) |
 
 ## MQTT-Topics
 
