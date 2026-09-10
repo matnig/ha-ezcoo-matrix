@@ -1,9 +1,20 @@
 #!/usr/bin/with-contenv bashio
 set -e
 
-bashio::config.require 'matrix_host' "Ohne die IP-Adresse der Matrix kann die Bridge nicht starten."
+export VERBINDUNG="$(bashio::config 'verbindung')"
 
-export MATRIX_HOST="$(bashio::config 'matrix_host')"
+if [ "${VERBINDUNG}" = "seriell" ]; then
+    export SERIAL_PORT="$(bashio::config 'serial_port')"
+    export SERIAL_BAUD="$(bashio::config 'serial_baud')"
+    if [ ! -e "${SERIAL_PORT}" ]; then
+        bashio::log.warning "Serielles Geraet ${SERIAL_PORT} nicht gefunden. Vorhanden:"
+        ls -1 /dev/tty* 2>/dev/null | grep -E 'USB|ACM|AMA' || bashio::log.warning "  keine"
+    fi
+else
+    bashio::config.require 'matrix_host' "Ohne die IP-Adresse der Matrix kann die Bridge nicht starten."
+fi
+
+export MATRIX_HOST="$(bashio::config 'matrix_host' || echo '')"
 export MATRIX_PORT="$(bashio::config 'matrix_port')"
 export POLL_INTERVAL="$(bashio::config 'poll_interval')"
 export BASE_TOPIC="$(bashio::config 'base_topic')"
@@ -31,5 +42,9 @@ else
     bashio::exit.nok "Kein MQTT-Broker gefunden. Mosquitto-Add-on installieren oder mqtt_host setzen."
 fi
 
-bashio::log.info "Starte EZCOO Matrix Bridge fuer ${MATRIX_HOST}:${MATRIX_PORT}"
+if [ "${VERBINDUNG}" = "seriell" ]; then
+    bashio::log.info "Starte EZCOO Matrix Bridge seriell ueber ${SERIAL_PORT}"
+else
+    bashio::log.info "Starte EZCOO Matrix Bridge fuer ${MATRIX_HOST}:${MATRIX_PORT}"
+fi
 exec python3 /ezcoo_bridge.py

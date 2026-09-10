@@ -1,5 +1,5 @@
 name: EZCOO Matrix Bridge
-version: "1.0.3"
+version: "1.1.0"
 slug: ezcoo_matrix_bridge
 description: Steuert eine EZCOO EZ-MX44HAS2 HDMI-Matrix per MQTT aus Home Assistant
 url: https://github.com/matnig/ha-ezcoo-matrix
@@ -12,7 +12,11 @@ startup: services
 boot: auto
 services:
   - mqtt:need
+# Zugriff auf serielle Geraete des Hosts (fuer verbindung: seriell)
+uart: true
 options:
+  # tcp = ueber Netzwerk, seriell = ueber die Micro-USB-Buchse der Matrix
+  verbindung: tcp
   matrix_host: ""
   matrix_port: 23
   poll_interval: 10
@@ -28,8 +32,11 @@ options:
     - OUT2
     - OUT3
     - OUT4
+  serial_port: /dev/ttyUSB0
+  serial_baud: 57600
   log_level: info
 schema:
+  verbindung: list(tcp|seriell)
   matrix_host: str
   matrix_port: port
   poll_interval: int(2,600)
@@ -39,6 +46,8 @@ schema:
     - str
   output_names:
     - str
+  serial_port: str
+  serial_baud: int(1200,921600)
   log_level: list(debug|info|warning|error)
   mqtt_host: str?
   mqtt_port: port?

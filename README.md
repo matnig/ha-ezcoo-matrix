@@ -6,7 +6,7 @@ Ein Home-Assistant-Add-on-Repository für **EZCOO-HDMI-Matrizen**.
 
 | Add-on | Beschreibung |
 |---|---|
-| [EZCOO Matrix Bridge](./ezcoo_matrix_bridge) | Steuert eine EZ-MX44HAS2 (4x4 HDMI 2.0) per MQTT |
+| [EZCOO Matrix Bridge](./ezcoo_matrix_bridge) | Steuert eine EZ-MX44HAS2 (4x4 HDMI 2.0) per MQTT — über Netzwerk oder serielle Schnittstelle |
 
 ## Installation
 

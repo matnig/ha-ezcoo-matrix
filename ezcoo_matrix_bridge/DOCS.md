@@ -32,7 +32,10 @@ Kontrolle mit `EZG HIP`, `EZG NMK`, `EZG RIP`, `EZG DHCP`, `EZG TIP`.
 
 | Option | Standard | Bedeutung |
 |---|---|---|
-| `matrix_host` | — | **Pflicht.** IP-Adresse der Matrix |
+| `verbindung` | `tcp` | `tcp` über Netzwerk oder `seriell` über Micro-USB |
+| `matrix_host` | — | **Pflicht bei `tcp`.** IP-Adresse der Matrix |
+| `serial_port` | `/dev/ttyUSB0` | Nur bei `seriell`: das serielle Gerät |
+| `serial_baud` | `57600` | Nur bei `seriell`: Baudrate der Matrix |
 | `matrix_port` | `23` | TCP-Port, auslesbar mit `EZG TIP` |
 | `poll_interval` | `10` | Sekunden zwischen zwei Statusabfragen |
 | `BACKOFF_MAX` | `300` | Obergrenze der Wartezeit, wenn die Matrix nicht antwortet |
@@ -64,6 +67,26 @@ output_names:
 ```
 
 Die Namen aus `input_names` werden zu den Auswahloptionen der `select`-Entities.
+
+## Serieller Betrieb
+
+Fällt der Netzwerkteil der Matrix aus, während sie über ihre Tasten
+weiterarbeitet, ist die Micro-USB-Buchse der Rettungsweg. Sie spricht dasselbe
+Protokoll, kennt die Zwei-Socket-Grenze nicht und ist vom Ethernet-Chip
+vollständig unabhängig.
+
+1. Micro-USB der Matrix mit einem USB-Anschluss des Home-Assistant-Rechners
+   verbinden.
+2. Unter **Einstellungen → System → Hardware → Alle Hardware** nachsehen, wie das
+   Gerät heißt — meist `/dev/ttyUSB0`. Stabiler ist der Pfad unter
+   `/dev/serial/by-id/…`, weil er sich beim Neustart nicht ändert.
+3. In der Add-on-Konfiguration `verbindung: seriell` setzen und `serial_port`
+   eintragen. `matrix_host` darf leer bleiben.
+
+Findet das Add-on das angegebene Gerät nicht, schreibt es beim Start eine Liste
+der tatsächlich vorhandenen seriellen Geräte ins Protokoll.
+
+Die Matrix verwendet **57600 Baud**, 8N1 — nicht die oft vermuteten 115200.
 
 ## Entities
 

@@ -40,6 +40,9 @@ def _names(raw: str | None, fallback: list[str]) -> list[str]:
     return parts
 
 
+VERBINDUNG = (_env("VERBINDUNG", "tcp") or "tcp").lower()
+SERIAL_PORT = _env("SERIAL_PORT", "/dev/ttyUSB0")
+SERIAL_BAUD = int(_env("SERIAL_BAUD", "57600"))
 MATRIX_HOST = _env("MATRIX_HOST", "")
 MATRIX_PORT = int(_env("MATRIX_PORT", "23"))
 POLL_INTERVAL = float(_env("POLL_INTERVAL", "10"))
@@ -222,6 +225,80 @@ class MatrixLink:
             raise ConnectionError(str(last_error))
 
 
+class SerialLink:
+    """Spricht die Matrix ueber die Micro-USB-Schnittstelle an.
+
+    Gleiche Schnittstelle wie MatrixLink, damit die Bridge nichts davon merkt.
+    Anders als beim Netzwerk gibt es hier keine Socket-Grenze - und der Weg
+    funktioniert auch dann, wenn der Ethernet-Teil des Geraets ausgefallen ist.
+    """
+
+    def __init__(self, port: str, baud: int = 57600):
+        self.port = port
+        self.baud = baud
+        self._ser = None
+        self._lock = threading.Lock()
+        self.connected = False
+
+    def close(self) -> None:
+        if self._ser is not None:
+            try:
+                self._ser.close()
+            except OSError:
+                pass
+        self._ser = None
+        self.connected = False
+
+    def _connect(self) -> None:
+        import serial  # nur im seriellen Betrieb noetig
+
+        LOG.info("Oeffne %s mit %d Baud", self.port, self.baud)
+        ser = serial.Serial(self.port, self.baud, bytesize=8, parity="N",
+                            stopbits=1, timeout=0.2)
+        time.sleep(0.3)
+        ser.reset_input_buffer()
+        self._ser = ser
+        self.connected = True
+        LOG.info("Serielle Verbindung steht")
+
+    def send(self, command: str, quiet: float = 0.4,
+             deadline: float = 5.0) -> str:
+        with self._lock:
+            last_error: Exception | None = None
+            for attempt in (1, 2):
+                try:
+                    if self._ser is None:
+                        self._connect()
+                    ser = self._ser
+                    assert ser is not None
+                    ser.reset_input_buffer()
+                    ser.write((command + "\r\n").encode("ascii"))
+                    ser.flush()
+
+                    buf = b""
+                    started = time.monotonic()
+                    last_data = started
+                    while True:
+                        chunk = ser.read(4096)
+                        if chunk:
+                            buf += chunk
+                            last_data = time.monotonic()
+                        now = time.monotonic()
+                        if buf and now - last_data >= quiet:
+                            break
+                        if now - started >= deadline:
+                            break
+                    return buf.decode("utf-8", "replace")
+                except Exception as err:
+                    last_error = err
+                    LOG.warning("Befehl %r fehlgeschlagen (Versuch %d): %s",
+                                command, attempt, err)
+                    self.close()
+                    if attempt == 1:
+                        time.sleep(0.5)
+            raise ConnectionError(str(last_error))
+
+
 # ---------------------------------------------------------------- Discovery
 
 
@@ -352,7 +429,10 @@ def discovery_payloads(state: dict) -> list[tuple[str, dict]]:
 
 class Bridge:
     def __init__(self):
-        self.link = MatrixLink(MATRIX_HOST, MATRIX_PORT)
+        if VERBINDUNG == "seriell":
+            self.link = SerialLink(SERIAL_PORT, SERIAL_BAUD)
+        else:
+            self.link = MatrixLink(MATRIX_HOST, MATRIX_PORT)
         self.state: dict = {}
         self.stop = threading.Event()
         self.refresh_now = threading.Event()
@@ -460,7 +540,11 @@ class Bridge:
         if not self.state:
             return
         payload = dict(self.state)
-        payload["bridge"] = {"connected": connected, "host": MATRIX_HOST}
+        payload["bridge"] = {
+            "connected": connected,
+            "verbindung": VERBINDUNG,
+            "host": SERIAL_PORT if VERBINDUNG == "seriell" else MATRIX_HOST,
+        }
         self.mqtt.publish(STATE_TOPIC, json.dumps(payload), qos=1, retain=True)
 
     # --------------------------------------------------------------- Lauf
@@ -507,12 +591,16 @@ def main() -> int:
         format="%(asctime)s %(levelname)-7s %(message)s",
         stream=sys.stdout,
     )
-    if not MATRIX_HOST:
-        LOG.error("matrix_host ist nicht gesetzt. Bitte die IP-Adresse der Matrix "
-                  "in der Add-on-Konfiguration eintragen.")
-        return 1
-    LOG.info("EZCOO Matrix Bridge - Matrix %s:%s, MQTT %s:%s, Poll %ss",
-             MATRIX_HOST, MATRIX_PORT, MQTT_HOST, MQTT_PORT, POLL_INTERVAL)
+    if VERBINDUNG == "seriell":
+        LOG.info("EZCOO Matrix Bridge - seriell %s @ %d Baud, MQTT %s:%s, Poll %ss",
+                 SERIAL_PORT, SERIAL_BAUD, MQTT_HOST, MQTT_PORT, POLL_INTERVAL)
+    else:
+        if not MATRIX_HOST:
+            LOG.error("matrix_host ist nicht gesetzt. Bitte die IP-Adresse der "
+                      "Matrix in der Add-on-Konfiguration eintragen.")
+            return 1
+        LOG.info("EZCOO Matrix Bridge - TCP %s:%s, MQTT %s:%s, Poll %ss",
+                 MATRIX_HOST, MATRIX_PORT, MQTT_HOST, MQTT_PORT, POLL_INTERVAL)
     bridge = Bridge()
     signal.signal(signal.SIGTERM, bridge.shutdown)
     signal.signal(signal.SIGINT, bridge.shutdown)

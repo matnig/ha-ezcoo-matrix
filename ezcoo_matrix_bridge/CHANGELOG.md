@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0
+
+- **Serieller Betriebsmodus.** Die Bridge kann die Matrix jetzt wahlweise über
+  Netzwerk (`verbindung: tcp`) oder über die Micro-USB-Buchse
+  (`verbindung: seriell`) ansprechen. Protokoll und Entities sind identisch.
+
+  Nützlich, wenn der Ethernet-Teil des Geräts ausfällt, während Hauptplatine und
+  HDMI-Schaltung weiterarbeiten — ein Fehlerbild, das bei diesen Matrizen
+  vorkommt. Der serielle Weg kennt außerdem die Zwei-Socket-Grenze des
+  Netzwerkbetriebs nicht.
+
+  Neue Optionen: `verbindung`, `serial_port` (Standard `/dev/ttyUSB0`),
+  `serial_baud` (Standard 57600). Das Add-on erhält über `uart: true` Zugriff
+  auf die seriellen Geräte des Hosts.
+
 ## 1.0.3
 
 - Wartezeit verdoppelt sich, wenn die Matrix nicht antwortet — bis maximal
