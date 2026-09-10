@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3
+
+- Wartezeit verdoppelt sich, wenn die Matrix nicht antwortet — bis maximal
+  300 Sekunden (`BACKOFF_MAX`). Vorher versuchte die Bridge auch bei einem
+  tagelang abgeschalteten Gerät stur alle `poll_interval` Sekunden einen
+  Neuaufbau; über zwölf Stunden Ausfall waren das rund 4300 Verbindungs-
+  versuche, jetzt sind es knapp 150. Nach der ersten erfolgreichen Antwort
+  gilt sofort wieder das normale Intervall.
+
 ## 1.0.2
 
 - Umstellung auf die paho-mqtt-Callback-API v2. Version 1 ist seit paho 2.0

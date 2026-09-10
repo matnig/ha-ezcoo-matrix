@@ -43,6 +43,8 @@ def _names(raw: str | None, fallback: list[str]) -> list[str]:
 MATRIX_HOST = _env("MATRIX_HOST", "")
 MATRIX_PORT = int(_env("MATRIX_PORT", "23"))
 POLL_INTERVAL = float(_env("POLL_INTERVAL", "10"))
+# Obergrenze der Wartezeit, wenn die Matrix nicht antwortet
+BACKOFF_MAX = float(_env("BACKOFF_MAX", "300"))
 BASE_TOPIC = (_env("BASE_TOPIC", "ezcoo/mx44has2") or "").rstrip("/")
 DISCOVERY_PREFIX = (_env("DISCOVERY_PREFIX", "homeassistant") or "").rstrip("/")
 
@@ -430,19 +432,20 @@ class Bridge:
 
     # ------------------------------------------------------------ Polling
 
-    def poll(self) -> None:
+    def poll(self) -> bool:
+        """Liest den Status. Rueckgabe: True bei Erfolg."""
         try:
             raw = self.link.send("EZSTA", quiet=0.5, deadline=6.0)
         except ConnectionError as err:
             LOG.error("Status nicht lesbar: %s", err)
             self._publish_state(connected=False)
-            return
+            return False
 
         parsed = parse_status(raw)
         if len(parsed["outputs"]) != 4 or len(parsed["inputs"]) != 4:
             LOG.warning("Unvollstaendige Statusantwort (%d Ausgaenge, %d Eingaenge)",
                         len(parsed["outputs"]), len(parsed["inputs"]))
-            return
+            return False
 
         self.state = parsed
         if not self._discovery_sent:
@@ -451,6 +454,7 @@ class Bridge:
             self._discovery_sent = True
             LOG.info("MQTT-Discovery veroeffentlicht")
         self._publish_state(connected=True)
+        return True
 
     def _publish_state(self, connected: bool) -> None:
         if not self.state:
@@ -464,11 +468,22 @@ class Bridge:
     def run(self) -> int:
         self.mqtt.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
         self.mqtt.loop_start()
+        fehler = 0
         try:
             while not self.stop.is_set():
-                self.poll()
+                if self.poll():
+                    fehler = 0
+                    wartezeit = POLL_INTERVAL
+                else:
+                    # Ist die Matrix weg, nicht stur weiter anklopfen: die
+                    # Wartezeit verdoppelt sich bis maximal BACKOFF_MAX.
+                    # Ohne das entstehen ueber Nacht tausende Verbindungs-
+                    # versuche gegen ein totes Geraet.
+                    fehler += 1
+                    wartezeit = min(POLL_INTERVAL * 2 ** fehler, BACKOFF_MAX)
+                    LOG.info("Naechster Versuch in %.0f s", wartezeit)
                 # Nach einem Schaltbefehl sofort nachlesen statt zu warten
-                if self.refresh_now.wait(timeout=POLL_INTERVAL):
+                if self.refresh_now.wait(timeout=wartezeit):
                     self.refresh_now.clear()
                     time.sleep(0.4)
         finally:

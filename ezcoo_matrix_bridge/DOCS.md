@@ -35,6 +35,7 @@ Kontrolle mit `EZG HIP`, `EZG NMK`, `EZG RIP`, `EZG DHCP`, `EZG TIP`.
 | `matrix_host` | — | **Pflicht.** IP-Adresse der Matrix |
 | `matrix_port` | `23` | TCP-Port, auslesbar mit `EZG TIP` |
 | `poll_interval` | `10` | Sekunden zwischen zwei Statusabfragen |
+| `BACKOFF_MAX` | `300` | Obergrenze der Wartezeit, wenn die Matrix nicht antwortet |
 | `base_topic` | `ezcoo/mx44has2` | Präfix der MQTT-Topics |
 | `discovery_prefix` | `homeassistant` | Discovery-Präfix von Home Assistant |
 | `input_names` | `IN1`…`IN4` | Klarnamen der Eingänge, z. B. `Apple TV` |
@@ -131,6 +132,17 @@ nächsten Zyklus zu warten.
 
 Bricht die Verbindung ab, wird sie beim nächsten Befehl neu aufgebaut; scheitert
 das, meldet der Diagnosesensor „Bridge-Verbindung" den Ausfall.
+
+Antwortet die Matrix nicht, verdoppelt sich die Wartezeit bis zum nächsten
+Versuch — 20 s, 40 s, 80 s und so weiter bis maximal `BACKOFF_MAX`. Damit klopft
+die Bridge nicht stundenlang im Sekundentakt an ein abgeschaltetes Gerät. Sobald
+eine Antwort kommt, gilt sofort wieder das normale `poll_interval`.
+
+**Zur Abfragehäufigkeit:** Mit dem Standardwert 10 s sind es 360 Abfragen pro
+Stunde. Wer das Gerät schonen will, setzt `poll_interval` auf 30 oder 60 — der
+einzige Nachteil ist, dass Schaltvorgänge am Frontpanel oder per IR entsprechend
+später in Home Assistant erscheinen. Eigene Schaltbefehle werden davon nicht
+verzögert, denn danach wird sofort nachgelesen.
 
 ## Grenzen und Stolperfallen
 
